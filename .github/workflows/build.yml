@@ -18,41 +18,13 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Setup JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
       - name: Instalar dependências
         run: npm install
 
-      - name: Instalar Expo CLI
-        run: npm install -g @expo/cli
+      - name: Instalar EAS CLI
+        run: npm install -g eas-cli
 
-      - name: Gerar projeto Android (prebuild)
-        run: npx expo prebuild --platform android --no-install
+      - name: Build APK via EAS
+        run: eas build --platform android --profile preview --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-
-      - name: Forçar Gradle 8.3
-        working-directory: android
-        run: |
-          sed -i 's|gradle-8.*-all.zip|gradle-8.3-all.zip|g' gradle/wrapper/gradle-wrapper.properties
-          cat gradle/wrapper/gradle-wrapper.properties
-
-      - name: Tornar gradlew executável
-        run: chmod +x android/gradlew
-
-      - name: Build APK Release
-        working-directory: android
-        run: ./gradlew assembleRelease --no-daemon -x lint
-        env:
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: MochilaNex-APK
-          path: android/app/build/outputs/apk/release/app-release.apk
-          retention-days: 30
