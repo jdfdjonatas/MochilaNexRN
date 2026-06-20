@@ -1,0 +1,9 @@
+node_modules/
+.expo/
+android/
+ios/
+*.keystore
+keystore-base64.txt
+build-result.json
+*.log
+.DS_Store
