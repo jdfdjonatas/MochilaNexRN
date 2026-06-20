@@ -1,0 +1,115 @@
+name: Build MochilaNex RN APK (Local Gradle)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Instalar dependências
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          for i in 1 2 3; do
+            npm install && break || {
+              echo "Tentativa $i falhou, aguardando antes de tentar novamente..."
+              sleep 15
+            }
+          done
+
+      - name: Alinhar versões de dependências ao Expo SDK
+        run: npx expo install --fix
+
+      - name: Gerar projeto nativo Android (prebuild)
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Restaurar keystore de assinatura
+        run: |
+          echo "${{ secrets.MOCHILANEX_KEYSTORE_BASE64 }}" | base64 -d > android/app/mochilanex-release.keystore
+
+      - name: Configurar assinatura no build.gradle
+        run: |
+          cat >> android/gradle.properties << EOF
+          MOCHILANEX_UPLOAD_STORE_FILE=mochilanex-release.keystore
+          MOCHILANEX_UPLOAD_KEY_ALIAS=mochilanex-key
+          MOCHILANEX_UPLOAD_STORE_PASSWORD=${{ secrets.MOCHILANEX_KEYSTORE_PASSWORD }}
+          MOCHILANEX_UPLOAD_KEY_PASSWORD=${{ secrets.MOCHILANEX_KEYSTORE_PASSWORD }}
+          EOF
+
+      - name: Ajustar signingConfig no build.gradle
+        run: |
+          python3 - << 'PYEOF'
+          import re
+
+          path = "android/app/build.gradle"
+          with open(path, "r") as f:
+              content = f.read()
+
+          signing_config = '''    signingConfigs {
+              release {
+                  if (project.hasProperty('MOCHILANEX_UPLOAD_STORE_FILE')) {
+                      storeFile file(MOCHILANEX_UPLOAD_STORE_FILE)
+                      storePassword MOCHILANEX_UPLOAD_STORE_PASSWORD
+                      keyAlias MOCHILANEX_UPLOAD_KEY_ALIAS
+                      keyPassword MOCHILANEX_UPLOAD_KEY_PASSWORD
+                  }
+              }
+          }
+          '''
+
+          # Insere o signingConfigs dentro do bloco android { ... }
+          content = re.sub(
+              r'(android\s*\{)',
+              r'\1\n' + signing_config,
+              content,
+              count=1
+          )
+
+          # Aponta o buildType release para usar essa signingConfig
+          content = re.sub(
+              r'(buildTypes\s*\{\s*release\s*\{)',
+              r'\1\n            signingConfig signingConfigs.release',
+              content,
+              count=1
+          )
+
+          with open(path, "w") as f:
+              f.write(content)
+
+          print("build.gradle atualizado com sucesso.")
+          PYEOF
+
+      - name: Tornar gradlew executável
+        run: chmod +x ./android/gradlew
+
+      - name: Build APK (Gradle)
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Renomear APK final
+        run: cp android/app/build/outputs/apk/release/app-release.apk MochilaNex.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MochilaNex-RN-APK
+          path: MochilaNex.apk
+          retention-days: 30
