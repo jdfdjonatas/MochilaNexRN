@@ -35,6 +35,12 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
+      - name: Forçar Gradle 8.3
+        working-directory: android
+        run: |
+          sed -i 's|gradle-8.*-all.zip|gradle-8.3-all.zip|g' gradle/wrapper/gradle-wrapper.properties
+          cat gradle/wrapper/gradle-wrapper.properties
+
       - name: Tornar gradlew executável
         run: chmod +x android/gradlew
 
