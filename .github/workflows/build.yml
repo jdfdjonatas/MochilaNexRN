@@ -24,13 +24,6 @@ jobs:
         run: npm install -g eas-cli
 
       - name: Build APK via EAS
-        run: eas build --platform android --profile preview --non-interactive --output ./MochilaNex.apk
+        run: eas build --platform android --profile preview --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: MochilaNex-RN-APK
-          path: MochilaNex.apk
-          retention-days: 30
